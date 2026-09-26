@@ -23,6 +23,7 @@ def analyze_phishing_content(text: str) -> dict:
         ("gemini-2.0-flash-lite", "v1"),
         ("gemini-2.0-flash", "v1"),
          ("gemini-3.5-flash", "v1"),
+           ("gemini-3.6-flash", "v1"),
         
     ]
 
