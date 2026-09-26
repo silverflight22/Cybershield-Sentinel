@@ -350,6 +350,7 @@ def analyze_threat(payload: AnalysisRequest):
     try:
         response = client.models.generate_content(
             model="gemini3.8-flash",
+            model="gemini3.6-flash",
             contents=prompt
         )
         raw_text = response.text.strip()
