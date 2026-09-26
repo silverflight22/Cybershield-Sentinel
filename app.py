@@ -1,4 +1,5 @@
 import os
+import json
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -6,8 +7,7 @@ from google import genai
 
 app = FastAPI(title="Cybershield Sentinel")
 
-# Initialize Google Gemini Client
-# Reads GEMINI_API_KEY directly from Render environment variables
+# Initialize Google Gemini Client using environment variable from Render
 api_key = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key) if api_key else None
 
@@ -95,14 +95,33 @@ HTML_CONTENT = """
                     ></textarea>
                 </div>
 
-                <div class="flex items-center justify-between">
-                    <button 
-                        type="button" 
-                        onclick="loadSample()" 
-                        class="text-xs text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1"
-                    >
-                        <i class="fa-solid fa-lightbulb"></i> Load Phishing Sample
-                    </button>
+                <div class="flex items-center justify-between flex-wrap gap-3">
+                    <div class="flex items-center gap-3">
+                        <button 
+                            type="button" 
+                            onclick="loadSample('email')" 
+                            class="text-xs text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                            <i class="fa-solid fa-envelope"></i> Load Phishing Email
+                        </button>
+                        <span class="text-slate-700">|</span>
+                        <button 
+                            type="button" 
+                            onclick="loadSample('url')" 
+                            class="text-xs text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                            <i class="fa-solid fa-link"></i> Load Suspicious URL
+                        </button>
+                        <span class="text-slate-700">|</span>
+                        <button 
+                            type="button" 
+                            onclick="clearInput()" 
+                            class="text-xs text-slate-500 hover:text-slate-400 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                            <i class="fa-solid fa-trash-can"></i> Clear
+                        </button>
+                    </div>
+
                     <button 
                         type="submit" 
                         id="submitBtn"
@@ -183,8 +202,12 @@ HTML_CONTENT = """
     </footer>
 
     <script>
-        function loadSample() {
-            document.getElementById('inputText').value = 
+        function loadSample(type) {
+            const inputField = document.getElementById('inputText');
+            if (type === 'url') {
+                inputField.value = 'http://secure-update-paypal-login-alert.com/verify-identity?user=billing_auth';
+            } else {
+                inputField.value = 
 `URGENT ACCOUNT NOTICE: Dear Customer, 
 
 We noticed suspicious sign-in attempts on your account from an unrecognized device. For your protection, your access has been temporarily restricted.
@@ -192,7 +215,17 @@ We noticed suspicious sign-in attempts on your account from an unrecognized devi
 Please verify your identity immediately to restore full account access:
 http://security-update-paypal-login-alert.com/verify-identity
 
-If you do not complete verification within 24 hours, your account will be permanently suspended.`;
+If you do not complete verification within 24 hours, your account will be permanently suspended.
+
+Thank you,
+Account Security Team`;
+            }
+        }
+
+        function clearInput() {
+            document.getElementById('inputText').value = '';
+            document.getElementById('resultContainer').classList.add('hidden');
+            document.getElementById('errorState').classList.add('hidden');
         }
 
         async function submitAnalysis(e) {
@@ -256,7 +289,7 @@ If you do not complete verification within 24 hours, your account will be perman
             const riskLevel = (data.risk_level || data.risk || (isPhishing ? 'HIGH' : 'LOW')).toUpperCase();
             const analysis = data.analysis || data.details || data.reason || data.message || JSON.stringify(data);
 
-            summaryText.innerHTML = `<p>${analysis.replace(/\n/g, '<br>')}</p>`;
+            summaryText.innerHTML = `<p>${analysis.replace(/\\n/g, '<br>')}</p>`;
             riskLevelText.innerText = riskLevel;
 
             if (isPhishing || riskLevel === 'HIGH' || riskLevel === 'CRITICAL') {
@@ -311,7 +344,7 @@ def analyze_threat(payload: AnalysisRequest):
         "risk_level": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
         "analysis": "Detailed breakdown explaining why this is or isn't a threat."
     }}
-    Return raw JSON only.
+    Return raw JSON only. Do not wrap in markdown or backticks.
     """
 
     try:
@@ -321,20 +354,18 @@ def analyze_threat(payload: AnalysisRequest):
         )
         raw_text = response.text.strip()
 
-        # Clean JSON fences if model returns markdown formatting
+        # Strip markdown fences if present
         if raw_text.startswith("```json"):
             raw_text = raw_text.removeprefix("```json").removesuffix("```").strip()
         elif raw_text.startswith("```"):
             raw_text = raw_text.removeprefix("```").removesuffix("```").strip()
 
-        import json
         parsed = json.loads(raw_text)
         return parsed
 
     except Exception as e:
-        # Fallback structured response if JSON parsing fails
         return {
             "is_phishing": True,
             "risk_level": "HIGH",
-            "analysis": f"Threat analysis complete. Raw model feedback:\n{response.text if 'response' in locals() else str(e)}"
+            "analysis": f"Threat analysis error or raw response format: {str(e)}"
         }
